@@ -40,4 +40,4 @@ jobs:
           context: .
           platforms: ${{ inputs.platform }}
           push: true
-          tags: ghcr.io/vitaluska123/edutracker:latest
+          tags: ghcr.io/robocoding-edu/edutracker:latest
