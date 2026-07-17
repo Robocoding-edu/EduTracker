@@ -1,0 +1,11 @@
+.git/
+.github/
+.agents/
+.ldlidar_stl_ros2.git-backup/
+
+**/__pycache__/
+**/build/
+**/install/
+**/log/
+.env
+.env.*

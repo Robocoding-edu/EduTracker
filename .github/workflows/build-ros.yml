@@ -1,0 +1,24 @@
+name: Build ROS node
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ros:jazzy-ros-base
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3-colcon-common-extensions libudev-dev
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Build lidar ROS package
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build --base-paths ros2_ws/src --build-base ros2_ws/build --install-base ros2_ws/install --log-base ros2_ws/log --parallel-workers 1
