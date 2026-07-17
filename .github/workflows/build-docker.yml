@@ -14,6 +14,9 @@ on:
 
 permissions:
   contents: read
+  packages: write
+
+
 
 jobs:
   build:
@@ -21,6 +24,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -30,5 +39,5 @@ jobs:
         with:
           context: .
           platforms: ${{ inputs.platform }}
-          push: false
-          tags: edutracker:ci
+          push: true
+          tags: ghcr.io/vitaluska123/edutracker:latest
