@@ -19,3 +19,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local backup of the upstream lidar-driver Git metadata
+/.ldlidar_stl_ros2.git-backup/

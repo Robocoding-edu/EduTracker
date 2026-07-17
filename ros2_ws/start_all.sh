@@ -20,21 +20,22 @@ ros2 launch slam_toolbox online_sync_launch.py \
 SLAM_PID=$!
 sleep 4
 
-echo "=== 3. Запуск OpenCV ROS-ноды камеры ==="
+echo "=== 3. Запуск ROS-ноды камеры ==="
 python3 /ros2_ws/camera_driver.py &
 CAMERA_DRIVER_PID=$!
 sleep 1
 
+echo "=== 4. Запуск OpenCV-ноды камеры ==="
 python3 /ros2_ws/openCV.py &
 OPENCV_PID=$!
 sleep 1
 
-echo "=== 3.5 Запуск Serial моста с Atmega2560 ==="
+echo "=== 5. Запуск Serial моста с Atmega2560 ==="
 python3 /ros2_ws/serial_bridge.py &
 SERIAL_PID=$!
 sleep 1
 
-echo "=== 4. Запуск Foxglove Bridge ==="
+echo "=== 6. Запуск Foxglove Bridge ==="
 ros2 launch foxglove_bridge foxglove_bridge_launch.xml &
 BRIDGE_PID=$!
 
