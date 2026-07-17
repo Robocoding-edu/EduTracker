@@ -13,16 +13,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /ros2_ws
 
-# The complete ROS workspace, including the lidar driver, is versioned here.
+# Копируем workspace
 COPY ros2_ws/ /ros2_ws/
 
-# Keep the pthread compatibility patch for GCC with ROS 2 Jazzy.
-RUN grep -qxF '#include <pthread.h>' /ros2_ws/src/ldlidar_stl_ros2/ldlidar_driver/src/logger/log_module.cpp || \
-    sed -i '1s/^/#include <pthread.h>\n/' /ros2_ws/src/ldlidar_stl_ros2/ldlidar_driver/src/logger/log_module.cpp
+# Фикс для ldlidar под Jazzy
+RUN grep -qxF '#include <pthread.h>' \
+    /ros2_ws/src/ldlidar_stl_ros2/ldlidar_driver/src/logger/log_module.cpp || \
+    sed -i '1s/^/#include <pthread.h>\n/' \
+    /ros2_ws/src/ldlidar_stl_ros2/ldlidar_driver/src/logger/log_module.cpp
 
-# A single build worker prevents out-of-memory failures on RPi 3B.
+# Собираем workspace внутри образа
 RUN chmod +x /ros2_ws/start_all.sh && \
-    /bin/bash -c "source /opt/ros/jazzy/setup.bash && colcon build --parallel-workers 1 --symlink-install"
+    bash -c " \
+      source /opt/ros/jazzy/setup.bash && \
+      colcon build \
+        --parallel-workers 1 \
+        --symlink-install \
+    "
 
-RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
-    echo "source /ros2_ws/install/setup.bash" >> ~/.bashrc
+# Чтобы контейнер сразу видел ROS
+RUN echo 'source /opt/ros/jazzy/setup.bash' >> /root/.bashrc && \
+    echo 'source /ros2_ws/install/setup.bash' >> /root/.bashrc
+
+WORKDIR /ros2_ws
+
+CMD ["bash", "-c", "source /opt/ros/jazzy/setup.bash && source /ros2_ws/install/setup.bash && ./start_all.sh"]
