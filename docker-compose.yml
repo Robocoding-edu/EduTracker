@@ -7,8 +7,8 @@ services:
     pid: host
     privileged: true
 
-    entrypoint:
-      - DETECTION_MODE=${DETECTION_MODE:-opencv}
+    environment:
+      DETECTION_MODE: ${DETECTION_MODE:-opencv}
 
     devices:
       - "/dev/ttyUSB0:/dev/ttyUSB0"
