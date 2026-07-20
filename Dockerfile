@@ -6,10 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
     libudev-dev \
     python3-serial \
+    python3-pip \
+    python3-numpy \
     ros-jazzy-foxglove-bridge \
     ros-jazzy-slam-toolbox \
     ros-jazzy-cv-bridge \
     && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir onnxruntime
 
 WORKDIR /ros2_ws
 

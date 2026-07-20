@@ -11,7 +11,7 @@ from sensor_msgs.msg import Image
 from visualization_msgs.msg import Marker
 
 from ultralytics import YOLO
-
+# import onnxruntime as ort
 
 class YoloDetector:
 
