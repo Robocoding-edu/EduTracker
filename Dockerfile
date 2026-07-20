@@ -14,7 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN uname -m && python3 --version && pip3 --version
-RUN pip3 install --no-cache-dir onnxruntime
+
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    onnxruntime
 
 WORKDIR /ros2_ws
 
