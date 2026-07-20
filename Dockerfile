@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-cv-bridge \
     && rm -rf /var/lib/apt/lists/*
 
+RUN uname -m && python3 --version && pip3 --version
 RUN pip3 install --no-cache-dir onnxruntime
 
 WORKDIR /ros2_ws
