@@ -1,6 +1,7 @@
 services:
   ros2_node:
     image: ghcr.io/robocoding-edu/edutracker:latest
+    pull_policy: always
 
     network_mode: "host"
     ipc: host
