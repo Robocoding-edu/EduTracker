@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-foxglove-bridge \
     ros-jazzy-slam-toolbox \
     ros-jazzy-cv-bridge \
+    ros-jazzy-navigation2 \
+    ros-jazzy-nav2-bringup \
     && rm -rf /var/lib/apt/lists/*
 
 RUN uname -m && python3 --version && pip3 --version

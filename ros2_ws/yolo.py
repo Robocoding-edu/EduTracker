@@ -18,7 +18,7 @@ class YoloDetector:
     def __init__(self):
 
         self.session = ort.InferenceSession(
-            "yolov8n.onnx",
+            "yolo-fastest-sim.onnx",
             providers=["CPUExecutionProvider"]
         )
 
@@ -26,44 +26,31 @@ class YoloDetector:
             self.session.get_inputs()[0].name
         )
 
-        self.confidence = 0.5
+        self.confidence = 0.7
+
+        self.input_w = 512
+        self.input_h = 320
 
         self.real_object_width = 0.15
         self.focal_length = 280.0
         self.fov_h = math.radians(62.2)
 
         self.names = {
-            0: "person",
-            1: "bicycle",
-            2: "car",
-            3: "motorcycle",
-            4: "airplane",
-            5: "bus",
-            6: "train",
-            7: "truck",
-            8: "boat",
-            9: "traffic light",
-            10: "fire hydrant",
-            11: "stop sign",
-            12: "parking meter",
-            13: "bench",
-            14: "bird",
-            15: "cat",
-            16: "dog",
-            17: "horse",
-            18: "sheep",
-            19: "cow",
-            20: "elephant",
-            21: "bear",
-            22: "zebra",
-            23: "giraffe"
+            0: "class0",
+            1: "class1",
+            2: "class2"
         }
+
+
+    def sigmoid(self, x):
+        return 1.0 / (1.0 + np.exp(-x))
+
 
     def preprocess(self, image):
 
         img = cv2.resize(
             image,
-            (640, 640)
+            (self.input_w, self.input_h)
         )
 
         img = cv2.cvtColor(
@@ -87,73 +74,72 @@ class YoloDetector:
 
         return img
 
+
     def process_frame(self, frame):
 
         output = frame.copy()
 
-        input_tensor = self.preprocess(frame)
+        frame_h, frame_w = frame.shape[:2]
+
+        input_tensor = self.preprocess(
+            frame
+        )
 
         result = self.session.run(
             None,
             {
-                self.input_name: input_tensor
+                self.input_name:
+                    input_tensor
             }
         )
 
-        predictions = result[0]
+        detections = result[0][0]
 
-        predictions = np.squeeze(
-            predictions
-        ).T
+        scale_x = (
+            frame_w /
+            self.input_w
+        )
+
+        scale_y = (
+            frame_h /
+            self.input_h
+        )
 
         boxes = []
         scores = []
         class_ids = []
 
-        frame_h, frame_w = frame.shape[:2]
+        for det in detections:
 
-        scale_x = frame_w / 640.0
-        scale_y = frame_h / 640.0
+            x1, y1, x2, y2 = det[:4]
 
-        for pred in predictions:
+            logits = det[4:]
 
-            class_scores = pred[4:]
-
-            class_id = np.argmax(
-                class_scores
+            probs = self.sigmoid(
+                logits
             )
 
-            score = class_scores[class_id]
+            class_id = np.argmax(
+                probs
+            )
+
+            score = probs[class_id]
 
             if score < self.confidence:
                 continue
 
-            cx, cy, w, h = pred[:4]
+            x1 = int(x1 * scale_x)
+            y1 = int(y1 * scale_y)
 
-            x1 = int(
-                (cx - w / 2) * scale_x
-            )
+            x2 = int(x2 * scale_x)
+            y2 = int(y2 * scale_y)
 
-            y1 = int(
-                (cy - h / 2) * scale_y
-            )
-
-            x2 = int(
-                (cx + w / 2) * scale_x
-            )
-
-            y2 = int(
-                (cy + h / 2) * scale_y
-            )
-
-            boxes.append(
-                [
-                    x1,
-                    y1,
-                    x2 - x1,
-                    y2 - y1
-                ]
-            )
+            boxes.append([
+                x1,
+                y1,
+                x2 - x1,
+                y2 - y1
+            ])
 
             scores.append(
                 float(score)
@@ -163,6 +149,9 @@ class YoloDetector:
                 int(class_id)
             )
 
+        if len(boxes) == 0:
+            return output, []
+
         indices = cv2.dnn.NMSBoxes(
             boxes,
             scores,
@@ -171,9 +160,6 @@ class YoloDetector:
         )
 
         objects = []
-
-        if len(indices) == 0:
-            return output, objects
 
         for idx in indices:
 
@@ -187,16 +173,14 @@ class YoloDetector:
 
             x, y, w, h = boxes[i]
 
+            if w <= 0:
+                continue
+
             x1 = x
             y1 = y
 
             x2 = x + w
             y2 = y + h
-
-            width = w
-
-            if width <= 0:
-                continue
 
             cls = class_ids[i]
 
@@ -208,7 +192,7 @@ class YoloDetector:
             distance = (
                 self.real_object_width *
                 self.focal_length
-            ) / width
+            ) / w
 
             center_x = frame_w / 2
 
@@ -256,7 +240,7 @@ class YoloDetector:
 
             cv2.putText(
                 output,
-                f"{name} {distance:.2f}m",
+                f"{name} {score:.2f}",
                 (x1, y1 - 10),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
@@ -265,7 +249,6 @@ class YoloDetector:
             )
 
         return output, objects
-
 
 class YoloNode(Node):
 
@@ -395,11 +378,12 @@ class YoloNode(Node):
 
 def main():
 
-    rclpy.init()
+    # rclpy.init()
 
-    node=YoloNode()
+    # node=YoloNode()
 
-    rclpy.spin(node)
+    # rclpy.spin(node)
+    print("yolo is to havy for rasbery pi 3b")
 
 
 if __name__=="__main__":
