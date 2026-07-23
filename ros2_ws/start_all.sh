@@ -72,7 +72,12 @@ python3 /ros2_ws/serial_bridge.py &
 SERIAL_PID=$!
 sleep 1
 
-echo "=== 6. Запуск Foxglove Bridge ==="
+echo "=== 6. Запуск nav2 ==="
+ros2 launch /ros2_ws/nav2_minimal.launch.py &
+NAV_PID=$!
+sleep 4
+
+echo "=== 7. Запуск Foxglove Bridge ==="
 ros2 launch foxglove_bridge foxglove_bridge_launch.xml &
 BRIDGE_PID=$!
 
@@ -81,4 +86,5 @@ wait $LIDAR_PID \
      $CAMERA_DRIVER_PID \
      $VISION_PID \
      $SERIAL_PID \
+     $NAV_PID \
      $BRIDGE_PID
