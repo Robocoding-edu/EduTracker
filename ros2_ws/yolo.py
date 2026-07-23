@@ -10,110 +10,261 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from visualization_msgs.msg import Marker
 
-from ultralytics import YOLO
-# import onnxruntime as ort
+import numpy as np
+import onnxruntime as ort
 
 class YoloDetector:
 
     def __init__(self):
-        self.model = YOLO("yolov8n.pt")
+
+        self.session = ort.InferenceSession(
+            "yolov8n.onnx",
+            providers=["CPUExecutionProvider"]
+        )
+
+        self.input_name = (
+            self.session.get_inputs()[0].name
+        )
 
         self.confidence = 0.5
 
-        # твоя камера
         self.real_object_width = 0.15
         self.focal_length = 280.0
         self.fov_h = math.radians(62.2)
 
+        self.names = {
+            0: "person",
+            1: "bicycle",
+            2: "car",
+            3: "motorcycle",
+            4: "airplane",
+            5: "bus",
+            6: "train",
+            7: "truck",
+            8: "boat",
+            9: "traffic light",
+            10: "fire hydrant",
+            11: "stop sign",
+            12: "parking meter",
+            13: "bench",
+            14: "bird",
+            15: "cat",
+            16: "dog",
+            17: "horse",
+            18: "sheep",
+            19: "cow",
+            20: "elephant",
+            21: "bear",
+            22: "zebra",
+            23: "giraffe"
+        }
+
+    def preprocess(self, image):
+
+        img = cv2.resize(
+            image,
+            (640, 640)
+        )
+
+        img = cv2.cvtColor(
+            img,
+            cv2.COLOR_BGR2RGB
+        )
+
+        img = img.astype(np.float32)
+
+        img /= 255.0
+
+        img = np.transpose(
+            img,
+            (2, 0, 1)
+        )
+
+        img = np.expand_dims(
+            img,
+            axis=0
+        )
+
+        return img
 
     def process_frame(self, frame):
 
         output = frame.copy()
 
-        results = self.model(
-            frame,
-            conf=self.confidence,
-            verbose=False
+        input_tensor = self.preprocess(frame)
+
+        result = self.session.run(
+            None,
+            {
+                self.input_name: input_tensor
+            }
         )
 
+        predictions = result[0]
+
+        predictions = np.squeeze(
+            predictions
+        ).T
+
+        boxes = []
+        scores = []
+        class_ids = []
+
+        frame_h, frame_w = frame.shape[:2]
+
+        scale_x = frame_w / 640.0
+        scale_y = frame_h / 640.0
+
+        for pred in predictions:
+
+            class_scores = pred[4:]
+
+            class_id = np.argmax(
+                class_scores
+            )
+
+            score = class_scores[class_id]
+
+            if score < self.confidence:
+                continue
+
+            cx, cy, w, h = pred[:4]
+
+            x1 = int(
+                (cx - w / 2) * scale_x
+            )
+
+            y1 = int(
+                (cy - h / 2) * scale_y
+            )
+
+            x2 = int(
+                (cx + w / 2) * scale_x
+            )
+
+            y2 = int(
+                (cy + h / 2) * scale_y
+            )
+
+            boxes.append(
+                [
+                    x1,
+                    y1,
+                    x2 - x1,
+                    y2 - y1
+                ]
+            )
+
+            scores.append(
+                float(score)
+            )
+
+            class_ids.append(
+                int(class_id)
+            )
+
+        indices = cv2.dnn.NMSBoxes(
+            boxes,
+            scores,
+            self.confidence,
+            0.45
+        )
 
         objects = []
 
+        if len(indices) == 0:
+            return output, objects
 
-        for result in results:
+        for idx in indices:
 
-            for box in result.boxes:
+            if isinstance(
+                idx,
+                (list, tuple, np.ndarray)
+            ):
+                i = idx[0]
+            else:
+                i = idx
 
-                x1, y1, x2, y2 = box.xyxy[0]
+            x, y, w, h = boxes[i]
 
-                x1 = int(x1)
-                y1 = int(y1)
-                x2 = int(x2)
-                y2 = int(y2)
+            x1 = x
+            y1 = y
 
+            x2 = x + w
+            y2 = y + h
 
-                cls = int(box.cls[0])
-                name = self.model.names[cls]
+            width = w
 
-                width = x2 - x1
+            if width <= 0:
+                continue
 
+            cls = class_ids[i]
 
-                if width <= 0:
-                    continue
+            name = self.names.get(
+                cls,
+                str(cls)
+            )
 
+            distance = (
+                self.real_object_width *
+                self.focal_length
+            ) / width
 
-                distance = (
-                    self.real_object_width *
-                    self.focal_length
-                ) / width
+            center_x = frame_w / 2
 
+            object_center = (
+                x1 + x2
+            ) / 2
 
-                center_x = frame.shape[1] / 2
+            offset = (
+                object_center -
+                center_x
+            )
 
-                object_center = (x1+x2)/2
+            angle = (
+                offset /
+                center_x
+            ) * (
+                self.fov_h / 2
+            )
 
-                offset = object_center-center_x
+            robot_x = (
+                distance *
+                math.cos(angle)
+            )
 
-                angle = (
-                    offset / center_x
-                ) * (self.fov_h/2)
+            robot_y = -(
+                distance *
+                math.sin(angle)
+            )
 
-
-                robot_x = distance * math.cos(angle)
-                robot_y = -distance * math.sin(angle)
-
-
-                objects.append(
-                    (
-                        robot_x,
-                        robot_y,
-                        name
-                    )
+            objects.append(
+                (
+                    robot_x,
+                    robot_y,
+                    name
                 )
+            )
 
+            cv2.rectangle(
+                output,
+                (x1, y1),
+                (x2, y2),
+                (0, 255, 0),
+                2
+            )
 
-                cv2.rectangle(
-                    output,
-                    (x1,y1),
-                    (x2,y2),
-                    (0,255,0),
-                    2
-                )
-
-
-                cv2.putText(
-                    output,
-                    f"{name} {distance:.2f}m",
-                    (x1,y1-10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0,255,0),
-                    2
-                )
-
+            cv2.putText(
+                output,
+                f"{name} {distance:.2f}m",
+                (x1, y1 - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                2
+            )
 
         return output, objects
-
 
 
 class YoloNode(Node):
