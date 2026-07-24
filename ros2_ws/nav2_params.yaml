@@ -19,8 +19,8 @@ planner_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0
-      publish_frequency: 2.0
+      update_frequency: 2.0
+      publish_frequency: 1.0
 
       width: 3
       height: 3
@@ -49,6 +49,8 @@ global_costmap:
       robot_base_frame: base_link
 
       resolution: 0.1
+      update_frequency: 1.0
+      publish_frequency: 1.0
 
       plugins:
         - static_layer
