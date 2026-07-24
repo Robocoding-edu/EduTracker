@@ -13,6 +13,7 @@ const int pinEncLeftB = 15;  // J8 пин 4
 const int pinEncRightA = 2;  // J1 пин 3
 const int pinEncRightB = 14; // J1 пин 4
 
+
 // --- КОНФИГУРАЦИЯ СЕРВОПРИВОДОВ КАМЕРЫ ---
 const int pinServoLeft = 5;   // Левая серва дифференциала
 const int pinServoRight = 13; // Правая серва дифференциала
@@ -29,6 +30,17 @@ long encoderLeft = 1000; long encoderRight = 1050;
 int distanceLeft = 45;   int distanceRight = 60; int buttonStatus = 0;
 unsigned long previousMillis = 0; const long interval = 100;
 String inputBuffer = "";
+
+long lastSentLeft = 0;
+long lastSentRight = 0;
+int lastSentButton = -1;
+unsigned long previousMillis = 0;
+
+const long interval = 100;
+
+unsigned long lastCommandTime = 0;
+const unsigned long connectionTimeout = 1000;
+
 
 void isrLeft() {
   // Если фазы одинаковые — крутимся в одну сторону, если разные — в другую
@@ -81,17 +93,34 @@ void setup() {
 
 void loop() {
   unsigned long currentMillis = millis();
-
+  if (millis() - lastCommandTime > connectionTimeout) {
+      stopMotors();
+  }
   // Отправка данных в ROS 2 (Каждые 100 мс)
   if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
+      previousMillis = currentMillis;
 
-    Serial.print("DAT:");
-    Serial.print(encoderLeft);   Serial.print(",");
-    Serial.print(encoderRight);  Serial.print(",");
-    Serial.print(distanceLeft);  Serial.print(",");
-    Serial.print(distanceRight); Serial.print(",");
-    Serial.println(buttonStatus);
+      if (
+        encoderLeft != lastSentLeft ||
+        encoderRight != lastSentRight ||
+        buttonStatus != lastSentButton
+      ) {
+
+        lastSentLeft = encoderLeft;
+        lastSentRight = encoderRight;
+        lastSentButton = buttonStatus;
+
+        Serial.print("DAT:");
+        Serial.print(encoderLeft);
+        Serial.print(",");
+        Serial.print(encoderRight);
+        Serial.print(",");
+        Serial.print(distanceLeft);
+        Serial.print(",");
+        Serial.print(distanceRight);
+        Serial.print(",");
+        Serial.println(buttonStatus);
+      }
   }
 
   // Прием команд от Малинки
@@ -107,6 +136,7 @@ void loop() {
 }
 
 void parseCommand(String cmd) {
+    lastCommandTime = millis();
   // НОВЫЙ БЛОК: Дифференциальное управление камерой (#HEAD:наклон,поворот)
   if (cmd.startsWith("#HEAD:")) {
     String valStr = cmd.substring(6);

@@ -20,6 +20,8 @@ class SerialBridgeNode(Node):
         self.wheel_separation = 0.195 # 195 мм в метрах
         self.ticks_per_rev = 77.0     # 77 тиков на оборот
 
+        self.last_cmd = None
+
         # Метров на один тик энкодера
         self.meters_per_tick = (math.pi * self.wheel_diameter) / self.ticks_per_rev
 
@@ -85,7 +87,10 @@ class SerialBridgeNode(Node):
                         if line.startswith("DAT:"):
                             self._parse_and_publish(line[4:])
                         elif line.startswith("ACK:"):
-                            self.get_logger().info(f"Ардуина: {line}")
+                            self.get_logger().debug(line)
+                else:
+                    time.sleep(0.005)
+
             except Exception as e:
                 time.sleep(1.0)
 
@@ -186,11 +191,24 @@ class SerialBridgeNode(Node):
         try: self.ser.write(f"#HEAD:{pitch},{yaw}\n".encode('utf-8'))
         except: pass
 
-    def cmd_vel_callback(self, msg):
-        linear_x = round(msg.linear.x, 2)
-        angular_z = round(msg.angular.z, 2)
-        try: self.ser.write(f"#MOVE:{linear_x},{angular_z}\n".encode('utf-8'))
-        except: pass
+    def cmd_vel_callback(self,msg):
+
+        linear_x = round(msg.linear.x,2)
+        angular_z = round(msg.angular.z,2)
+
+        cmd = (linear_x, angular_z)
+
+        if cmd == self.last_cmd:
+            return
+
+        self.last_cmd = cmd
+
+        try:
+            self.ser.write(
+                f"#MOVE:{linear_x},{angular_z}\n".encode()
+            )
+        except:
+            pass
 
 def main(args=None):
     rclpy.init(args=args)
