@@ -21,6 +21,8 @@ class SerialBridgeNode(Node):
         self.ticks_per_rev = 77.0     # 77 тиков на оборот
 
         self.last_cmd = None
+        self.last_cmd_time = time.time()
+        self.cmd_repeat_interval = 0.5
 
         # Метров на один тик энкодера
         self.meters_per_tick = (math.pi * self.wheel_diameter) / self.ticks_per_rev
@@ -74,6 +76,25 @@ class SerialBridgeNode(Node):
         # Поток чтения
         self.read_thread = threading.Thread(target=self._read_serial_loop, daemon=True)
         self.read_thread.start()
+
+        self.cmd_timer = self.create_timer(
+            self.cmd_repeat_interval,
+            self.repeat_last_cmd
+        )
+
+    def repeat_last_cmd(self):
+        if self.last_cmd is None:
+            return
+
+        try:
+            linear_x, angular_z = self.last_cmd
+
+            self.ser.write(
+                f"#MOVE:{linear_x},{angular_z}\n".encode()
+            )
+
+        except Exception:
+            pass
 
     def _read_serial_loop(self):
         buffer = ""
@@ -198,16 +219,14 @@ class SerialBridgeNode(Node):
 
         cmd = (linear_x, angular_z)
 
-        if cmd == self.last_cmd:
-            return
-
         self.last_cmd = cmd
 
         try:
             self.ser.write(
                 f"#MOVE:{linear_x},{angular_z}\n".encode()
             )
-        except:
+
+        except Exception:
             pass
 
 def main(args=None):

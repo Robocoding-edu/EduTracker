@@ -1,7 +1,42 @@
 #include <Arduino.h>
 #include <Servo.h> // Подключаем стандартную библиотеку сервоприводов
+#include <Wire.h>
+#include <VL53L0X.h>
 
 #define SERIAL_BAUD 115200
+
+// ================= VL53L0X =================
+
+#define SENSOR_COUNT 4
+
+const uint8_t XSHUT_PINS[SENSOR_COUNT] = {
+  23, // RIGHT
+  25, // FRONT
+  24, // LEFT
+  22  // REAR
+};
+
+const uint8_t SENSOR_ADDR[SENSOR_COUNT] = {
+  0x30,
+  0x31,
+  0x32,
+  0x33
+};
+
+VL53L0X sensors[SENSOR_COUNT];
+
+uint16_t distances[SENSOR_COUNT];
+
+const uint16_t STOP_DISTANCE_FRONT = 250; // мм
+const uint16_t STOP_DISTANCE_SIDE  = 150;
+const uint16_t STOP_DISTANCE_REAR  = 200;
+
+unsigned long lastSensorUpdate = 0;
+const unsigned long sensorInterval = 80;
+
+
+float currentLinear = 0;
+float currentAngular = 0;
 
 // --- КОНФИГУРАЦИЯ ПИНОВ МОТОРОВ КОЛЕС (Уже настроено) ---
 const int pinPWMA = 8;  const int pinAIN2 = 7;  const int pinAIN1 = 6;
@@ -36,8 +71,48 @@ long lastSentRight = 0;
 int lastSentButton = -1;
 
 unsigned long lastCommandTime = 0;
-const unsigned long connectionTimeout = 1000;
+const unsigned long connectionTimeout = 1500;
 
+void initVL53L0X()
+{
+  Wire.begin();
+  Wire.setClock(400000);
+
+
+  // выключаем все
+  for(int i=0;i<SENSOR_COUNT;i++)
+  {
+    pinMode(XSHUT_PINS[i], OUTPUT);
+    digitalWrite(XSHUT_PINS[i], LOW);
+  }
+
+  delay(100);
+
+
+  for(int i=0;i<SENSOR_COUNT;i++)
+  {
+    digitalWrite(XSHUT_PINS[i], HIGH);
+    delay(50);
+
+
+    if(!sensors[i].init())
+    {
+      Serial.print("VL53 FAILED ");
+      Serial.println(i);
+      continue;
+    }
+
+
+    sensors[i].setAddress(SENSOR_ADDR[i]);
+    sensors[i].setTimeout(100);
+
+    sensors[i].setMeasurementTimingBudget(30000);
+
+
+    Serial.print("VL53 OK ");
+    Serial.println(i);
+  }
+}
 
 void isrLeft() {
   // Если фазы одинаковые — крутимся в одну сторону, если разные — в другую
@@ -62,6 +137,7 @@ void parseCommand(String cmd);
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
+  initVL53L0X();
   inputBuffer.reserve(64);
 
   // Инициализация колес
@@ -90,6 +166,17 @@ void setup() {
 
 void loop() {
   unsigned long currentMillis = millis();
+  if(currentMillis - lastSensorUpdate >= sensorInterval)
+  {
+    lastSensorUpdate=currentMillis;
+    updateVL53();
+
+
+    if(emergencyStop())
+    {
+      stopMotors();
+    }
+  }
   if (millis() - lastCommandTime > connectionTimeout) {
       stopMotors();
   }
@@ -181,6 +268,8 @@ void parseCommand(String cmd) {
     if (commaIndex != -1) {
       float linearX = valStr.substring(0, commaIndex).toFloat();
       float angularZ = valStr.substring(commaIndex + 1).toFloat();
+      currentLinear = linearX;
+      currentAngular = angularZ;
       int targetSpeed = (int)(linearX * 255.0);
       int targetTurn = (int)(angularZ * 150.0);
       int leftMotorSpeed = targetSpeed + targetTurn;
@@ -204,3 +293,56 @@ void setMotor(int motorNum, int speed) {
   else if (motorNum == 2) { digitalWrite(pinBIN1, in1State); digitalWrite(pinBIN2, in2State); analogWrite(pinPWMB, speed); }
 }
 void stopMotors() { setMotor(1, 0); setMotor(2, 0); }
+
+void updateVL53()
+{
+  for(int i=0;i<SENSOR_COUNT;i++)
+  {
+    uint16_t d = sensors[i].readRangeSingleMillimeters();
+
+    if(sensors[i].timeoutOccurred() || d > 2000)
+      distances[i] = 9999;
+    else
+      distances[i] = d;
+  }
+}
+
+bool obstacleDetected()
+{
+  bool movingForward = false;
+
+  // если есть команда движения вперёд
+  // можно сделать через переменную
+  return false;
+}
+
+bool emergencyStop()
+{
+
+  // вперед
+  if(currentLinear > 0.05)
+  {
+    if(distances[1] < STOP_DISTANCE_FRONT)
+      return true;
+  }
+
+
+  // назад
+  if(currentLinear < -0.05)
+  {
+    if(distances[3] < STOP_DISTANCE_REAR)
+      return true;
+  }
+
+
+  // вращение на месте
+  if(abs(currentAngular)>0.1)
+  {
+    if(distances[0] < STOP_DISTANCE_SIDE ||
+       distances[2] < STOP_DISTANCE_SIDE)
+       return true;
+  }
+
+
+  return false;
+}
