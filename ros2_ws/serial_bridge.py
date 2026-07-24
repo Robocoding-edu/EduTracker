@@ -15,6 +15,14 @@ class SerialBridgeNode(Node):
     def __init__(self):
         super().__init__('serial_bridge_node')
 
+        self.last_vx = 0.0
+        self.last_vth = 0.0
+
+        self.odom_timer = self.create_timer(
+            0.1,
+            self.publish_odom_timer
+        )
+
         # --- ФИЗИЧЕСКИЕ ПАРАМЕТРЫ РОБОТА ---
         self.wheel_diameter = 0.065  # 65 мм в метрах
         self.wheel_separation = 0.195 # 195 мм в метрах
@@ -159,6 +167,9 @@ class SerialBridgeNode(Node):
                 else:
                     v_x = v_th = 0.0
 
+                self.last_vx = v_x
+                self.last_vth = v_th
+
                 # Обновляем абсолютные координаты робота на карте
                 self.x += d_center * math.cos(self.th)
                 self.y += d_center * math.sin(self.th)
@@ -173,6 +184,16 @@ class SerialBridgeNode(Node):
 
         except (ValueError, IndexError):
             pass
+
+    def publish_odom_timer(self):
+
+        current_time = self.get_clock().now()
+
+        self._publish_odom_data(
+            current_time,
+            0.0,
+            0.0
+        )
 
     def _publish_odom_data(self, current_time, v_x, v_th):
         # Переводим угол Эйлера (Theta) в кватернион вращения ROS
