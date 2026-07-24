@@ -34,9 +34,6 @@ String inputBuffer = "";
 long lastSentLeft = 0;
 long lastSentRight = 0;
 int lastSentButton = -1;
-unsigned long previousMillis = 0;
-
-const long interval = 100;
 
 unsigned long lastCommandTime = 0;
 const unsigned long connectionTimeout = 1000;
